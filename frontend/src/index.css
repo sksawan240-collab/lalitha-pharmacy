@@ -1,0 +1,39 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: light; }
+html { scroll-behavior: smooth; }
+body { @apply bg-ink-50 text-ink-900 font-body antialiased; }
+
+.font-display { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; }
+
+.glass { @apply bg-white/70 backdrop-blur-xl border border-white/60; }
+.card { @apply bg-white rounded-2xl border border-slate-200/70 shadow-card; }
+.btn-primary { @apply inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-5 py-2.5 text-white font-semibold shadow-[0_8px_24px_-8px_rgba(5,150,105,0.4)] transition hover:shadow-[0_12px_32px_-8px_rgba(5,150,105,0.5)] hover:brightness-105 active:scale-[.98] disabled:opacity-60 disabled:shadow-none; }
+.btn-ghost { @apply inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white/70 px-5 py-2.5 font-semibold text-ink-800 transition hover:border-med-400 hover:text-med-700; }
+.input { @apply w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-50 placeholder:text-slate-400; }
+.label { @apply mb-1.5 block text-sm font-semibold text-slate-700; }
+.badge { @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold; }
+.skeleton { @apply animate-pulse rounded-xl bg-gradient-to-r from-slate-200 via-slate-100 to-slate-200; }
+
+.hero-grid {
+  background-image: radial-gradient(circle at 1px 1px, rgba(11,99,206,.14) 1px, transparent 0);
+  background-size: 26px 26px;
+}
+.pulse-line { stroke-dasharray: 6 10; animation: dash 2.6s linear infinite; }
+@keyframes dash { to { stroke-dashoffset: -64; } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+  html { scroll-behavior: auto; }
+}
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: linear-gradient(180deg, #0b63ce, #0e9f6e); border-radius: 8px; }
+::-webkit-scrollbar-track { background: #eef1f6; }
+
+.table-wrap { @apply overflow-x-auto rounded-2xl border border-slate-200 bg-white; }
+table.data { @apply w-full min-w-[640px] text-sm; }
+table.data th { @apply bg-slate-50 px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500; }
+table.data td { @apply border-t border-slate-100 px-4 py-3 align-middle; }

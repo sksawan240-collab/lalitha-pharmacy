@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+
+# Builds
+dist/
+build/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Uploads (user generated content)
+uploads/
+!uploads/.gitkeep
+
+# Logs & misc
+*.log
+.DS_Store

@@ -1,0 +1,19 @@
+{
+  "name": "lalitha-pharmacy",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Lalitha Pharmacy - Real-time pharmaceutical distribution platform (React + Node.js + MongoDB Atlas + Socket.IO)",
+  "scripts": {
+    "install:all": "npm install && npm --prefix backend install && npm --prefix frontend install",
+    "dev": "concurrently -n api,web -c blue,green \"npm --prefix backend run dev\" \"npm --prefix frontend run dev\"",
+    "server": "npm --prefix backend run dev",
+    "client": "npm --prefix frontend run dev",
+    "setup:admin": "node backend/scripts/createAdmin.js",
+    "seed:categories": "node backend/scripts/seedCategories.js",
+    "test": "npm --prefix backend test",
+    "build": "npm --prefix frontend run build"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
