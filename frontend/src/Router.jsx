@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
+import { Analytics } from '@vercel/analytics/react';
 import { AuthProvider, SocketProvider, ThemeProvider } from './context/AppContext';
 import PublicLayout from './layouts/PublicLayout';
 import { CustomerShell, AdminShell, SalesShell, Guard } from './layouts/DashLayout';
@@ -29,6 +30,7 @@ export default function Router() {
       <AuthProvider>
         <SocketProvider>
           <Toaster position="top-right" toastOptions={{ duration: 3500 }} />
+          <Analytics />
           <Routes>
             <Route element={<PublicLayout />}>
               <Route index element={<Home />} />
