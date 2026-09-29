@@ -5,6 +5,23 @@
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
+const normalizeOriginList = (raw) => {
+  const defaults = [
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'https://lalitha-pharmacy-1.onrender.com',
+    'https://lalitha-pharmacy.onrender.com',
+  ];
+
+  const incoming = (raw || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean)
+    .filter((origin) => origin !== '*');
+
+  return [...new Set([...defaults, ...incoming])];
+};
+
 const requiredInProduction = ['SESSION_SECRET', 'MONGODB_URI'];
 
 const env = {
@@ -14,6 +31,7 @@ const env = {
   port: parseInt(process.env.PORT || '5000', 10),
   backendUrl: process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 5000}`,
   frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
+  frontendUrls: normalizeOriginList(process.env.FRONTEND_URL || 'http://localhost:5173'),
 
   mongoUri: process.env.MONGODB_URI || '',
   mongoUriTest: process.env.MONGODB_URI_TEST || '',
