@@ -58,6 +58,9 @@ const buildSessionMiddleware = () => {
       sameSite: isProd ? 'none' : 'lax',
       maxAge: env.session.maxAgeMs,
       path: '/',
+      // CRITICAL FIX: In production with cross-origin requests, explicitly set domain
+      // This ensures the cookie is sent across different Render subdomains
+      domain: isProd && env.cookieDomain ? env.cookieDomain : undefined,
     },
   });
 };
