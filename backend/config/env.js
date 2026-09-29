@@ -54,6 +54,11 @@ const env = {
     maxAgeMs: parseInt(process.env.SESSION_MAX_AGE_MS || String(1000 * 60 * 60 * 8), 10),
   },
 
+  // CRITICAL: Cookie domain for production cross-origin session handling
+  // On Render.com, if frontend and backend are on different subdomains,
+  // set COOKIE_DOMAIN to '.onrender.com' to allow cookies to be shared
+  cookieDomain: process.env.COOKIE_DOMAIN || undefined,
+
   email: {
     host: process.env.EMAIL_HOST || '',
     port: parseInt(process.env.EMAIL_PORT || '587', 10),
