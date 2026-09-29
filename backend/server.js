@@ -1,42 +1,30 @@
-const express = require('express');
-const cors = require('cors');
+require('dotenv').config();
 
-const app = express();
+const { buildApp } = require('./app');
+const { gracefulShutdown } = require('./config/db');
+const env = require('./config/env');
 
-const allowedOrigins = [
-  'https://lalitha-pharmacy-1.onrender.com',
-  'https://lalitha-pharmacy.onrender.com',
-  'http://localhost:5173',
-  'http://127.0.0.1:5173',
-];
+const startServer = async () => {
+  try {
+    console.log(`Starting Lalitha Pharmacy API (${env.nodeEnv})`);
 
-const corsOptions = {
-  origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-      return;
-    }
+    const { app, server, io } = await buildApp({
+      connect: true,
+      listen: true,
+    });
 
-    callback(new Error('Not allowed by CORS'));
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  maxAge: 86400,
+    // Graceful shutdown handlers
+    process.on('SIGTERM', gracefulShutdown(server));
+    process.on('SIGINT', gracefulShutdown(server));
+
+    return { app, server, io };
+  } catch (err) {
+    console.error('✖ Server startup failed:', err.message);
+    process.exit(1);
+  }
 };
 
-app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
+// Start server
+startServer();
 
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
-
-app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'ok', message: 'API is running' });
-});
-
-const PORT = process.env.PORT || 5000;
-
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+module.exports = startServer;
