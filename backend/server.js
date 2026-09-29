@@ -1,24 +1,14 @@
-/**
- * Lalitha Pharmacy — backend entrypoint.
- * Connects to MongoDB Atlas, starts Express + Socket.IO, handles graceful shutdown.
- */
-const { buildApp } = require('./app');
+const express = require('express');
+const cors = require('cors');
+const app = express();
 
-const signals = ['SIGINT', 'SIGTERM'];
+// Allow requests from your frontend domain
+app.use(cors({
+  origin: ['https://lalitha-pharmacy-1.onrender.com', 'http://localhost:5173'], // Add your frontend URL(s)
+  credentials: true, // Important: allows cookies to be sent
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  maxAge: 86400 // Cache preflight requests for 24 hours
+}));
 
-(async () => {
-  try {
-    const { server } = await buildApp({ connect: true, listen: true });
-    for (const sig of signals) {
-      process.once(sig, () => {
-        console.log(`Received ${sig} — closing down…`);
-        server.close(() => process.exit(0));
-      });
-    }
-    const db = require('./config/db');
-    process.once('SIGINT', () => db.disconnectDB().then(() => process.exit(0)));
-  } catch (err) {
-    console.error(`✖ Failed to start server: ${err.message}`);
-    process.exit(1);
-  }
-})();
+// ... rest of your server setup
