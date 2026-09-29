@@ -1,3 +1,4 @@
+```javascript
 const express = require('express');
 const http = require('http');
 const cors = require('cors');
@@ -23,8 +24,9 @@ const realtime = require('./services/realtime.service');
 const User = require('./models/User');
 const mongoose = require('mongoose');
 
-/** Single shared MongoDB session store (Atlas anywhere in the process — HTTP + Socket.IO). */
+/** Single shared MongoDB session store */
 let sessionStore = null;
+
 const getSessionStore = () => {
   if (!sessionStore) {
     sessionStore = MongoStore.create({
@@ -34,15 +36,17 @@ const getSessionStore = () => {
       autoRemove: 'native',
     });
   }
+
   return sessionStore;
 };
 
 /**
- * Build the express-session middleware (server-side session + HTTP-only cookie).
+ * Build the express-session middleware.
  */
 const buildSessionMiddleware = () => {
   const isProd = env.isProd;
   const useMongoStore = Boolean(env.mongoUri || env.mongoUriTest);
+
   return session({
     name: env.session.name,
     secret: env.session.secret,
@@ -50,11 +54,18 @@ const buildSessionMiddleware = () => {
     saveUninitialized: false,
     rolling: false,
     proxy: true,
+
     store: useMongoStore ? getSessionStore() : undefined,
+
     cookie: {
       httpOnly: true,
-      secure: isProd, // true in production (HTTPS)
+
+      // HTTPS on Render
+      secure: isProd,
+
+      // Required for cross-origin frontend/backend cookies
       sameSite: isProd ? 'none' : 'lax',
+
       maxAge: env.session.maxAgeMs,
       path: '/',
     },
@@ -62,31 +73,44 @@ const buildSessionMiddleware = () => {
 };
 
 /**
- * Resolve the session id from a raw cookie header (mirrors express-session's
- * cookie handling: `lp.sid=s:<signed-id>`). Used for the Socket.IO handshake
- * where the Express middleware stack does not run.
+ * Resolve session ID from cookie.
  */
 const resolveSessionId = (req) => {
   const header = req?.headers?.cookie || '';
   const cookies = cookieLib.parse(header);
+
   let raw = cookies[env.session.name];
-  if (!raw && req?.cookies) raw = req.cookies[env.session.name];
-  if (!raw) return null;
+
+  if (!raw && req?.cookies) {
+    raw = req.cookies[env.session.name];
+  }
+
+  if (!raw) {
+    return null;
+  }
+
   if (raw.startsWith('s:')) {
-    const val = signature.unsign(raw.slice(2), env.session.secret);
+    const val = signature.unsign(
+      raw.slice(2),
+      env.session.secret
+    );
+
     return val === false ? null : val;
   }
+
   return raw;
 };
 
 const loadSessionData = (sid) =>
   new Promise((resolveValue, rejectValue) => {
-    getSessionStore().get(sid, (err, data) => (err ? rejectValue(err) : resolveValue(data)));
+    getSessionStore().get(
+      sid,
+      (err, data) => (err ? rejectValue(err) : resolveValue(data))
+    );
   });
 
 /**
- * Build the Express app + Socket.IO server.
- * Optionally skips DB connection + HTTP listen for test suites.
+ * Build Express application + Socket.IO server.
  */
 const buildApp = async ({ connect = true, listen = true } = {}) => {
   const app = express();
@@ -98,34 +122,86 @@ const buildApp = async ({ connect = true, listen = true } = {}) => {
     await db.connectDB();
   }
 
-  // Session middleware AFTER the DB is connected (MongoStore needs the client).
+  // Session middleware
   const sessionMiddleware = buildSessionMiddleware();
 
-  /* ── Security / middleware ─────────────────────────────────── */
+  /* ─────────────────────────────────────────────
+     CORS CONFIGURATION
+     ───────────────────────────────────────────── */
+
+  const frontendOrigins = String(env.frontendUrl || '')
+    .split(',')
+    .map((url) => url.trim())
+    .filter(Boolean);
+
+  console.log('Allowed frontend origins:', frontendOrigins);
+
   app.use(
     helmet({
       contentSecurityPolicy: env.isProd ? undefined : false,
       crossOriginEmbedderPolicy: false,
     })
   );
+
   app.use(
     cors({
-      origin: env.frontendUrl.split(',').map((s) => s.trim()),
+      origin: frontendOrigins,
       credentials: true,
-      methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization', 'x-requested-with'],
+      methods: [
+        'GET',
+        'POST',
+        'PATCH',
+        'PUT',
+        'DELETE',
+        'OPTIONS',
+      ],
+      allowedHeaders: [
+        'Content-Type',
+        'Authorization',
+        'x-requested-with',
+      ],
     })
   );
+
+  // Handle OPTIONS preflight requests
+  app.options('*', cors({
+    origin: frontendOrigins,
+    credentials: true,
+  }));
+
   app.use(compression());
-  app.use(express.json({ limit: '1mb' }));
-  app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+
+  app.use(
+    express.json({
+      limit: '1mb',
+    })
+  );
+
+  app.use(
+    express.urlencoded({
+      extended: true,
+      limit: '1mb',
+    })
+  );
+
   app.use(cookieParser());
-  // express-session: server-side sessions in MongoDB Atlas + secure HTTP-only cookie.
-  // NO JWT, NO Authorization: Bearer, NO localStorage tokens.
+
+  // Server-side sessions
   app.use(sessionMiddleware);
+
   app.use(hpp());
+
   app.use(mongoSanitize());
-  if (!env.isTest) app.use(morgan(env.isProd ? 'combined' : 'dev'));
+
+  if (!env.isTest) {
+    app.use(
+      morgan(env.isProd ? 'combined' : 'dev')
+    );
+  }
+
+  /* ─────────────────────────────────────────────
+     RATE LIMITING
+     ───────────────────────────────────────────── */
 
   app.use(
     rateLimit({
@@ -133,26 +209,65 @@ const buildApp = async ({ connect = true, listen = true } = {}) => {
       max: env.rateLimit.apiMax,
       standardHeaders: true,
       legacyHeaders: false,
-      message: { success: false, message: 'Too many requests — please slow down.' },
+
+      message: {
+        success: false,
+        message: 'Too many requests — please slow down.',
+      },
     })
   );
 
-  /* ── Static uploads ────────────────────────────────────────── */
-  app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+  /* ─────────────────────────────────────────────
+     STATIC UPLOADS
+     ───────────────────────────────────────────── */
 
-  /* ── Health + API ──────────────────────────────────────────── */
-  app.get('/api/health', (req, res) =>
-    res.json({ success: true, message: 'Lalitha Pharmacy API is healthy', data: { time: new Date().toISOString() } })
+  app.use(
+    '/uploads',
+    express.static(
+      path.join(__dirname, 'uploads')
+    )
   );
+
+  /* ─────────────────────────────────────────────
+     HEALTH CHECK
+     ───────────────────────────────────────────── */
+
+  app.get('/api/health', (req, res) => {
+    res.json({
+      success: true,
+      message: 'Lalitha Pharmacy API is healthy',
+      data: {
+        time: new Date().toISOString(),
+      },
+    });
+  });
+
+  /* ─────────────────────────────────────────────
+     API ROUTES
+     ───────────────────────────────────────────── */
+
   app.use(routes);
+
+  /* ─────────────────────────────────────────────
+     ERROR HANDLERS
+     ───────────────────────────────────────────── */
+
   app.use(notFound);
   app.use(errorHandler);
 
-  /* ── HTTP server + Socket.IO ───────────────────────────────── */
+  /* ─────────────────────────────────────────────
+     HTTP SERVER
+     ───────────────────────────────────────────── */
+
   const server = http.createServer(app);
+
+  /* ─────────────────────────────────────────────
+     SOCKET.IO
+     ───────────────────────────────────────────── */
+
   const io = new Server(server, {
     cors: {
-      origin: env.frontendUrl.split(',').map((s) => s.trim()),
+      origin: frontendOrigins,
       methods: ['GET', 'POST'],
       credentials: true,
     },
@@ -160,31 +275,61 @@ const buildApp = async ({ connect = true, listen = true } = {}) => {
 
   realtime.initRealtime(io);
 
-  // Socket.IO authenticates through the SAME server-side session (cookie-based,
-  // no JWT / tokens). The Express stack does not run for the WebSocket upgrade,
-  // so we resolve the signed session cookie and read the session from MongoDB
-  // directly — exactly what express-session does for HTTP requests.
+  /* ─────────────────────────────────────────────
+     SOCKET SESSION AUTHENTICATION
+     ───────────────────────────────────────────── */
+
   io.use(async (socket, next) => {
     try {
       const sid = resolveSessionId(socket.request);
-      if (!sid) throw new Error('missing session');
+
+      if (!sid) {
+        throw new Error('missing session');
+      }
+
       const data = await loadSessionData(sid);
-      if (!data || !data.userId) throw new Error('invalid session');
+
+      if (!data || !data.userId) {
+        throw new Error('invalid session');
+      }
+
       const user = await User.findById(data.userId);
-      if (!user || user.status !== 'ACTIVE') throw new Error('user unavailable');
+
+      if (!user || user.status !== 'ACTIVE') {
+        throw new Error('user unavailable');
+      }
+
       socket.user = user;
+
       next();
     } catch (err) {
-      next(new Error('Unauthorized socket connection'));
+      next(
+        new Error('Unauthorized socket connection')
+      );
     }
   });
 
+  /* ─────────────────────────────────────────────
+     SOCKET CONNECTION
+     ───────────────────────────────────────────── */
+
   io.on('connection', (socket) => {
     const user = socket.user;
-    if (!user) return;
+
+    if (!user) {
+      return;
+    }
+
     socket.join(`user:${user._id}`);
     socket.join(`role:${user.role.toLowerCase()}`);
-    realtime.emitToUser(user._id, 'connected', { message: `Welcome, ${user.name}` });
+
+    realtime.emitToUser(
+      user._id,
+      'connected',
+      {
+        message: `Welcome, ${user.name}`,
+      }
+    );
 
     socket.on('disconnect', () => {
       socket.leave(`user:${user._id}`);
@@ -192,13 +337,31 @@ const buildApp = async ({ connect = true, listen = true } = {}) => {
     });
   });
 
+  /* ─────────────────────────────────────────────
+     START SERVER
+     ───────────────────────────────────────────── */
+
   if (listen) {
-    server.listen(env.port, () => {
-      console.log(`✔ Lalitha Pharmacy API + Socket.IO → http://localhost:${env.port}`);
-    });
+    server.listen(
+      env.port,
+      '0.0.0.0',
+      () => {
+        console.log(
+          `✔ Lalitha Pharmacy API + Socket.IO running on port ${env.port}`
+        );
+      }
+    );
   }
 
-  return { app, server, io };
+  return {
+    app,
+    server,
+    io,
+  };
 };
 
-module.exports = { buildApp, buildSessionMiddleware };
+module.exports = {
+  buildApp,
+  buildSessionMiddleware,
+};
+```
