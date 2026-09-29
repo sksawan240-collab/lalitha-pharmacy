@@ -121,31 +121,33 @@ const buildApp = async ({ connect = true, listen = true } = {}) => {
     })
   );
 
-  // CORS
-  app.use(
-    cors({
-      origin: env.frontendUrl
-        .split(',')
-        .map((s) => s.trim()),
+  // CORS — Allow multiple frontend origins with credentials
+  const corsOrigins = env.frontendUrls;
+  console.log('✔ CORS allowed origins:', corsOrigins);
 
-      credentials: true,
+  const corsOptions = {
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!origin) {
+        return callback(null, true);
+      }
 
-      methods: [
-        'GET',
-        'POST',
-        'PATCH',
-        'PUT',
-        'DELETE',
-        'OPTIONS',
-      ],
+      if (corsOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        console.warn(`✖ CORS rejected origin: ${origin}`);
+        callback(new Error(`CORS policy: origin ${origin} is not allowed`));
+      }
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-requested-with', 'X-Requested-With'],
+    maxAge: 86400,
+  };
 
-      allowedHeaders: [
-        'Content-Type',
-        'Authorization',
-        'x-requested-with',
-      ],
-    })
-  );
+  app.use(cors(corsOptions));
+  // Handle preflight explicitly
+  app.options('*', cors(corsOptions));
 
   // Compression
   app.use(compression());
@@ -232,13 +234,10 @@ const buildApp = async ({ connect = true, listen = true } = {}) => {
   // Socket.IO
   const io = new Server(server, {
     cors: {
-      origin: env.frontendUrl
-        .split(',')
-        .map((s) => s.trim()),
-
+      origin: corsOrigins,
       methods: ['GET', 'POST'],
-
       credentials: true,
+      maxAge: 86400,
     },
   });
 
